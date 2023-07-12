@@ -28,6 +28,7 @@ module.exports = {
             group: 'internal',
           },
         ],
+        pathGroupsExcludedImportTypes: ['type'],
         groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'object', 'type'],
       },
     ],
@@ -39,6 +40,12 @@ module.exports = {
       },
     ],
     'vue/html-indent': ['warn', 2],
+    '@typescript-eslint/consistent-type-imports': [
+      'warn',
+      {
+        prefer: 'type-imports',
+      },
+    ],
     '@typescript-eslint/explicit-function-return-type': ['off'],
     '@typescript-eslint/no-explicit-any': ['off'],
     '@typescript-eslint/no-use-before-define': ['off'],
