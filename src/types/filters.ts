@@ -15,10 +15,13 @@ export enum Timeframes {
   ALL = 'ALL',
 }
 
-export type SnapshotFilter = {
+export type TimeframeFilter = {
   name: Timeframes;
   label: string;
   type: SnapshotTypes;
-  count: number;
   group?: number;
+};
+
+export type SnapshotFilter = TimeframeFilter & {
+  count: number;
 };

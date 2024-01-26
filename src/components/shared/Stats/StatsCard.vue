@@ -46,6 +46,7 @@ export default class StatsCard extends Mixins() {}
 
   &-filters {
     order: 1;
+    gap: $inner-spacing-mini;
 
     @include large-desktop {
       margin-left: auto;

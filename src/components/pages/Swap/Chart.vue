@@ -17,7 +17,18 @@
     </template>
 
     <template #filters>
-      <stats-filter :filters="filters" :value="selectedFilter" :disabled="chartIsLoading" @input="changeFilter" />
+      <stats-filter
+        :filters="durationFilters"
+        :value="selectedDuration"
+        :disabled="chartIsLoading"
+        @input="changeDuration"
+      />
+      <stats-filter
+        :filters="timeframeFilters"
+        :value="selectedTimeframe"
+        :disabled="chartIsLoading"
+        @input="changeTimeframe"
+      />
     </template>
 
     <template #types>
@@ -78,7 +89,7 @@ import { fetchOrderBookData } from '@/indexer/queries/price/orderBook';
 import { lazyComponent } from '@/router';
 import type { OCLH, SnapshotItem } from '@/types/chart';
 import { Timeframes } from '@/types/filters';
-import type { SnapshotFilter } from '@/types/filters';
+import type { SnapshotFilter, TimeframeFilter } from '@/types/filters';
 import {
   debouncedInputHandler,
   getTextWidth,
@@ -108,7 +119,7 @@ const CHART_TYPE_ICONS = {
   [CHART_TYPES.CANDLE]: SvgIcons.CandleIcon,
 };
 
-const LINE_CHART_FILTERS: SnapshotFilter[] = [
+const DURATION_FILTERS: SnapshotFilter[] = [
   {
     name: Timeframes.DAY,
     label: '1D',
@@ -138,6 +149,42 @@ const LINE_CHART_FILTERS: SnapshotFilter[] = [
     label: 'ALL',
     type: SnapshotTypes.DAY,
     count: Infinity,
+  },
+];
+
+const TIMEFRAME_FILTERS: TimeframeFilter[] = [
+  {
+    name: Timeframes.FIVE_MINUTES,
+    label: '5m',
+    type: SnapshotTypes.DEFAULT,
+  },
+  {
+    name: Timeframes.FIFTEEN_MINUTES,
+    label: '15m',
+    type: SnapshotTypes.DEFAULT,
+    group: 3, // 5 min in 15 min
+  },
+  {
+    name: Timeframes.THIRTY_MINUTES,
+    label: '30m',
+    type: SnapshotTypes.DEFAULT,
+    group: 6, // 5 min in 30 min
+  },
+  {
+    name: Timeframes.HOUR,
+    label: '1h',
+    type: SnapshotTypes.HOUR,
+  },
+  {
+    name: Timeframes.FOUR_HOURS,
+    label: '4h',
+    type: SnapshotTypes.HOUR,
+    group: 4, // 1 hour in 4 hours
+  },
+  {
+    name: Timeframes.DAY,
+    label: '1D',
+    type: SnapshotTypes.DAY,
   },
 ];
 
@@ -278,7 +325,9 @@ export default class SwapChart extends Mixins(
   private priceUpdateTimestampSync: Nullable<NodeJS.Timer | number> = null;
 
   chartType: CHART_TYPES = CHART_TYPES.LINE;
-  selectedFilter: SnapshotFilter = LINE_CHART_FILTERS[0];
+  selectedDuration: SnapshotFilter = DURATION_FILTERS[0];
+  selectedTimeframe: TimeframeFilter = TIMEFRAME_FILTERS[0];
+
   isReversedChart = false;
 
   get isLineChart(): boolean {
@@ -331,8 +380,16 @@ export default class SwapChart extends Mixins(
     }));
   }
 
-  get filters(): SnapshotFilter[] {
-    return LINE_CHART_FILTERS;
+  get durationFilters(): SnapshotFilter[] {
+    return DURATION_FILTERS;
+  }
+
+  get timeframeFilters(): TimeframeFilter[] {
+    return TIMEFRAME_FILTERS;
+  }
+
+  get group(): number {
+    return this.selectedTimeframe.group ?? 0;
   }
 
   get chartIsLoading(): boolean {
@@ -358,7 +415,7 @@ export default class SwapChart extends Mixins(
   }
 
   get timeDifference(): number {
-    return SECONDS_IN_TYPE[this.selectedFilter.type] * 1000;
+    return SECONDS_IN_TYPE[this.selectedDuration.type] * 1000;
   }
 
   get visibleChartItemsRange(): [number, number] {
@@ -393,10 +450,7 @@ export default class SwapChart extends Mixins(
 
   get chartData(): readonly ChartDataItem[] {
     const groups: ChartDataItem[] = [];
-    const {
-      dataset,
-      selectedFilter: { group },
-    } = this;
+    const { dataset, group } = this;
     // ordered by timestamp ASC
     const ordered = dataset.slice().reverse();
 
@@ -625,7 +679,7 @@ export default class SwapChart extends Mixins(
   // ordered ty timestamp DESC
   private async fetchData(entityId: string) {
     const handler = this.isOrderBook ? fetchOrderBookData : fetchAssetData;
-    const { type, count } = this.selectedFilter;
+    const { type, count } = this.selectedDuration;
     const pageInfo = this.pageInfos[entityId];
     const buffer = this.samplesBuffer[entityId] ?? [];
     const nodes: SnapshotItem[] = [];
@@ -700,7 +754,11 @@ export default class SwapChart extends Mixins(
           pageInfos[address] = { hasNextPage, endCursor };
         });
 
-        const size = Math.min(groups[0]?.length ?? Infinity, groups[1]?.length ?? Infinity, this.selectedFilter.count);
+        const size = Math.min(
+          groups[0]?.length ?? Infinity,
+          groups[1]?.length ?? Infinity,
+          this.selectedDuration.count
+        );
 
         let { min, max } = this.limits;
 
@@ -872,8 +930,30 @@ export default class SwapChart extends Mixins(
     this.dataset = Object.freeze(items);
   }
 
-  changeFilter(filter: SnapshotFilter): void {
-    this.selectedFilter = filter;
+  changeDuration(duration: SnapshotFilter): void {
+    if (duration.type !== this.selectedTimeframe.type) {
+      const timeframe = this.timeframeFilters.find((item) => item.type === duration.type)!;
+      this.setTimeframe(timeframe);
+    }
+
+    this.setDuration(duration);
+  }
+
+  changeTimeframe(timeframe: TimeframeFilter): void {
+    if (timeframe.type !== this.selectedDuration.type) {
+      const duration = this.durationFilters.find((item) => item.type === timeframe.type)!;
+      this.setDuration(duration);
+    }
+
+    this.setTimeframe(timeframe);
+  }
+
+  private setTimeframe(timeframe: TimeframeFilter): void {
+    this.selectedTimeframe = timeframe;
+  }
+
+  private setDuration(duration: SnapshotFilter): void {
+    this.selectedDuration = duration;
     this.forceUpdatePrices(true);
   }
 
@@ -889,7 +969,6 @@ export default class SwapChart extends Mixins(
 
   selectChartType(type: CHART_TYPES): void {
     this.chartType = type;
-    // this.changeFilter(this.filters[0]);
   }
 
   handleZoom(event: any): void {
